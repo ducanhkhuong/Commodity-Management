@@ -1,0 +1,28 @@
+liên quan đến chip , nạp và giao tiếp :
++ chip atmega2560
++ 1 header nạp dành cho mạch nạp usb isp
++ 1 cổng type c dành cho uart
++ 1 thạch anh 16 mhz 
++ 1 header dương âm cắm nguồn 12v (điện áp 5v , 3.3v , dòng chịu trong khoảng 5A-10A) => nguồn vừa nuôi chip vừa nuôi 3 động cơ
++ 1 khu ổn định điện áp và đưa đi nuôi hệ thống
++ 1 led báo nguồn 12v màu đỏ
++ 1 nút reset
++ 1 khu thiết kế giữa atmega2560 + driver tmc2209
+
+input :
++ 6 header 2 chân dành cho công tắc hành trình
++ 6 header 3 chân dành cho cảm biến
++ 3 nút nhấn mini
+    
+output :
++ 3 header 4 chân đầu ra chỉ việc cắm động cơ bước dành cho driver tmc2209
++ 2 led (màu xanh nước biển) mini
++ 2 header là 2 relay đầu ra (quy định sẵn âm dương) => mục tiêu là cắm động cơ và xuất tín hiệu on off đóng ngắt . (opto cách li)
+
+yêu cầu khác : 
++ mạch màu đen , chip đặt chéo , pcb smt đẹp
++ nếu có thể mở rộng thay thế được driver tmc2209 trong trường hợp chập cháy càng tốt .
++ có thể nạp thử code nháy led , hoặc đk động cơ qua header nạp để test.
+
+
+sửa các bản tin config bên ngoài
