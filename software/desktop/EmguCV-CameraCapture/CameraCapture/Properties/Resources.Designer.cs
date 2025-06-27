@@ -8,7 +8,7 @@
 // </auto-generated>
 //------------------------------------------------------------------------------
 
-namespace SessionManager.Properties {
+namespace CameraCapture.Properties {
     using System;
     
     
@@ -57,6 +57,16 @@ namespace SessionManager.Properties {
             }
             set {
                 resourceCulture = value;
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Drawing.Bitmap.
+        /// </summary>
+        internal static System.Drawing.Bitmap boxqrcode {
+            get {
+                object obj = ResourceManager.GetObject("boxqrcode", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
             }
         }
     }
