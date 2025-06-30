@@ -29,6 +29,7 @@ namespace SessionManager
         private CancellationTokenSource cancellationTokenSource;
         private SerialPort serialPort;
         private Dictionary<string, int> qrCodeMap;
+        private List<byte> serialBuffer = new List<byte>();
 
         private ConcurrentQueue<string> processPushConfigQueue;
         private ConcurrentQueue<string> processPushControllQueue;
@@ -132,10 +133,11 @@ namespace SessionManager
                     }
                 };
                 qrCounter = 1;
-                groupCOM.Items.AddRange(new string[] { "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8","COM9", "COM14" });
+                groupCOM.Items.AddRange(new string[] { "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8","COM9", "COM10", "COM14" });
                 groupCOM.SelectedIndex = 2;
                 groupBaurd.Items.AddRange(new object[] { 9600, 38400, 115200 });
-                groupBaurd.SelectedIndex = 1;
+                groupBaurd.SelectedIndex = 2;
+
                 serialPort.DataReceived += SerialPort_DataReceived;
 
                 btnHome.Enabled = false;
@@ -152,15 +154,10 @@ namespace SessionManager
         {
             try
             {
-                int bytesToRead = serialPort.BytesToRead;
-                byte[] buffer = new byte[bytesToRead];
-                serialPort.Read(buffer, 0, bytesToRead);
-
-                string receivedText = Encoding.UTF8.GetString(buffer);
-
+                string line = serialPort.ReadLine();
                 this.Invoke(new Action(() =>
                 {
-                    processPullQueue.Enqueue(receivedText);
+                    processPullQueue.Enqueue(line);
                 }));
             }
             catch (Exception ex)
@@ -252,7 +249,7 @@ namespace SessionManager
                             ParseSerialResponse(responsive);
                         }
                     }
-                    await Task.Delay(50);
+                    await Task.Delay(200);
                 }
             }
             catch (TaskCanceledException)
@@ -472,7 +469,7 @@ namespace SessionManager
                 pictureIndex4.Location = new Point(
                     (index4.Width - pictureIndex4.Width) / 2,
                     (index4.Height - pictureIndex4.Height) / 2
-                );
+                );          
                 index4.Controls.Clear();
                 index4.Controls.Add(pictureIndex4);
                 queueControllStatus.control = "SEND4";

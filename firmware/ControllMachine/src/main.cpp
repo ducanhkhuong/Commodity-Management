@@ -5,7 +5,6 @@
 int main() {
     CtrManager ctrManager(BAUD_RATE);
     while(1){
-        ctrManager.HandllerManager();    
-        _delay_ms(10);
+        ctrManager.HandllerManager(); 
     }
 }

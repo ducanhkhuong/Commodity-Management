@@ -7,10 +7,9 @@
 #include <stdio.h>
 #include <HardwareSerial.h>
 #include "Stream.hpp"
+#include "Motor/Stepper.hpp"
 #include "IO/Button.hpp"
 #include "IO/Led.hpp"
-#include "Motor/Stepper.hpp"
-#include "Motor/SimpleStepper.hpp"
 #include "Timer/TimerMillis.hpp"
 #include "Timer/TimerMicros.hpp"
 
@@ -51,6 +50,12 @@ class CtrManager{
             uint8_t bufferPush[7];
         };HardWare hwStatus;
 
+        //Stepper status
+        struct StepperMonitor{
+            int stepStage;
+            bool moving;
+        };StepperMonitor stepperMonitor;
+
         TimerMillis HandlerUartRecieveTimer;
         TimerMillis HandlerUartTransmitTimer;
         TimerMillis HandlerNotifyTimer;
@@ -61,11 +66,9 @@ class CtrManager{
         Button ButtonAxisY;
         Button ButtonAxisZ;
 
-        SimpleStepper StepperX;
-        SimpleStepper StepperY;
-        SimpleStepper StepperZ;
-
-        Led LedNotify;
+        AccelStepper stepperX;
+        AccelStepper stepperY;
+        AccelStepper stepperZ;
 
         void HandllerPull();
         void HandllerPush();
