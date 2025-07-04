@@ -21,17 +21,8 @@
           "SelectedChildIndex": 1,
           "Children": [
             {
-              "$type": "Document",
-              "DocumentIndex": 1,
-              "Title": "CameraCapture.cs [Design]",
-              "DocumentMoniker": "C:\\Users\\duca3\\OneDrive\\M\u00E1y t\u00EDnh\\support\\software\\desktop\\EmguCV-CameraCapture\\CameraCapture\\CameraCapture.cs",
-              "RelativeDocumentMoniker": "CameraCapture\\CameraCapture.cs",
-              "ToolTip": "C:\\Users\\duca3\\OneDrive\\M\u00E1y t\u00EDnh\\support\\software\\desktop\\EmguCV-CameraCapture\\CameraCapture\\CameraCapture.cs [Design]",
-              "RelativeToolTip": "CameraCapture\\CameraCapture.cs [Design]",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-04-17T05:13:15.547Z",
-              "IsPinned": true,
-              "EditorCaption": " [Design]"
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{1c4feeaa-4718-4aa9-859d-94ce25d182ba}"
             },
             {
               "$type": "Document",
@@ -41,15 +32,21 @@
               "RelativeDocumentMoniker": "CameraCapture\\CameraCapture.cs",
               "ToolTip": "C:\\Users\\duca3\\OneDrive\\M\u00E1y t\u00EDnh\\support\\software\\desktop\\EmguCV-CameraCapture\\CameraCapture\\CameraCapture.cs",
               "RelativeToolTip": "CameraCapture\\CameraCapture.cs",
-              "ViewState": "AgIAAHwAAAAAAAAAAADwv4UAAAASAAAAAAAAAA==",
+              "ViewState": "AgIAAG0AAAAAAAAAAAAwwIIAAAApAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-04-08T04:35:22.969Z",
-              "IsPinned": true,
+              "WhenOpened": "2025-07-01T12:13:10.317Z",
               "EditorCaption": ""
             },
             {
-              "$type": "Bookmark",
-              "Name": "ST:0:0:{1c4feeaa-4718-4aa9-859d-94ce25d182ba}"
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "CameraCapture.cs [Design]",
+              "DocumentMoniker": "C:\\Users\\duca3\\OneDrive\\M\u00E1y t\u00EDnh\\support\\software\\desktop\\EmguCV-CameraCapture\\CameraCapture\\CameraCapture.cs",
+              "RelativeDocumentMoniker": "CameraCapture\\CameraCapture.cs",
+              "ToolTip": "C:\\Users\\duca3\\OneDrive\\M\u00E1y t\u00EDnh\\support\\software\\desktop\\EmguCV-CameraCapture\\CameraCapture\\CameraCapture.cs [Design]",
+              "RelativeToolTip": "CameraCapture\\CameraCapture.cs [Design]",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-07-01T12:12:33.006Z"
             }
           ]
         }

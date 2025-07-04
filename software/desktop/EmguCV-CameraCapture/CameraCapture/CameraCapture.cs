@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.IO.Ports;
 using System.Linq;
+using System.Reflection.Emit;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -29,6 +30,9 @@ namespace SessionManager
         private CancellationTokenSource cancellationTokenSource;
         private SerialPort serialPort;
         private Dictionary<string, int> qrCodeMap;
+        private Dictionary<int, System.Windows.Forms.Button> btnGetMap;
+        private Dictionary<int, System.Windows.Forms.Label> labelQrMap;
+
         private List<byte> serialBuffer = new List<byte>();
 
         private ConcurrentQueue<string> processPushConfigQueue;
@@ -113,6 +117,8 @@ namespace SessionManager
             cancellationTokenSource = new CancellationTokenSource();
             serialPort              = new SerialPort();
             qrCodeMap               = new Dictionary<string, int>();
+            btnGetMap               = new Dictionary<int, System.Windows.Forms.Button>();
+            labelQrMap              = new Dictionary<int, System.Windows.Forms.Label>();
             pictureIndex1           = new PictureBox();
             pictureIndex2           = new PictureBox();
             pictureIndex3           = new PictureBox();
@@ -122,7 +128,7 @@ namespace SessionManager
 
             try
             {
-                capture = new Capture(1);
+                capture = new Capture(0);
                 barcodeReader = new ZXing.BarcodeReader
                 {
                     AutoRotate = true,
@@ -386,39 +392,87 @@ namespace SessionManager
                         default:continue;
                     }
 
+                    if (btnGetMap.ContainsKey(i) || labelQrMap.ContainsKey(i))
+                        continue;
+
                     bool alreadyHasButton = targetPanel.Controls
                         .OfType<System.Windows.Forms.Button>()
                         .Any(btn => btn.Tag?.ToString() == "btnGet");
 
+                    bool alreadyHasLabel = targetPanel.Controls
+                        .OfType<System.Windows.Forms.Label>()
+                        .Any(label => label.Tag?.ToString() == "labelQr");
+
                     if (alreadyHasButton)
+                        continue;
+                    if (alreadyHasLabel)
                         continue;
 
                     System.Windows.Forms.Button btnGet = new System.Windows.Forms.Button();
+                    System.Windows.Forms.Label labelQr = new System.Windows.Forms.Label();
+
+                    //button
                     btnGet.Text = "Lấy hàng";
                     btnGet.Size = new Size(80, 30);
                     btnGet.Tag = "btnGet";
-
                     btnGet.Location = new Point(
                         targetPanel.Width - btnGet.Width - 5,
                         targetPanel.Height - btnGet.Height - 0
                     );
 
+                    //label
+                    labelQr.Text = $"Vị trí {i + 1}";
+                    labelQr.Size = new Size(80, 30);
+                    labelQr.Tag = "labelQr";
+                    labelQr.Location = new Point(
+                        (targetPanel.Width - btnGet.Width) / 2,
+                        0                                       
+                    );
+
+                    //add direction
+                    btnGetMap[i] = btnGet;
+                    labelQrMap[i] = labelQr;
+
                     int capturedIndex = i;
                     btnGet.Click += (s, e) =>
                     {
-                        queueControllStatus.control = "RECV" + (capturedIndex+1);
+                        queueControllStatus.control = "RECV" + (capturedIndex + 1);
                         processPushControllQueue.Enqueue(queueControllStatus.control);
                         repoCheck.arr[capturedIndex] = false;
+
+                        btnGetMap.Remove(capturedIndex);
+                        labelQrMap.Remove(capturedIndex);
+
                         targetPanel.Controls.Remove((Control)s);
+
                         var picture = targetPanel.Controls.OfType<PictureBox>().FirstOrDefault();
                         if (picture != null)
                         {
                             targetPanel.Controls.Remove(picture);
                         }
+
+                        var label = targetPanel.Controls
+                            .OfType<System.Windows.Forms.Label> ()
+                            .FirstOrDefault(l => l.Tag?.ToString() == "labelQr");
+                        if (label != null)
+                        {
+                            targetPanel.Controls.Remove(label);
+                        }
                     };
                     targetPanel.Controls.Add(btnGet);
+                    targetPanel.Controls.Add(labelQr);
                 }
             }
+        }
+
+        void lockLabelButton(int index, bool visible)
+        {
+
+            if (btnGetMap.ContainsKey(index))
+                btnGetMap[index].Visible = visible;
+
+            if (labelQrMap.ContainsKey(index))
+                labelQrMap[index].Visible = visible;
         }
 
         void HandleSendMode(String indexmap,String qr)
@@ -581,6 +635,10 @@ namespace SessionManager
                             btnHome.Enabled = false;
                             btnGuihang.Enabled = false;
                             btnLayhang.Enabled = false;
+                            for (int i = 0; i <= 3; i++)
+                            {
+                                lockLabelButton(i, false);
+                            }
                             SetLedStateMode(Color.Red,Color.Red, Color.Red, Color.Red);
                             SetLedStateResponse(Color.Red, Color.Red, Color.Red, Color.Red, Color.Red, Color.Red);
                         }
@@ -602,6 +660,10 @@ namespace SessionManager
                             clickState.btnSend = false;
                             if (confirmState.btnSend)
                             {
+                                for(int i= 0; i <= 3; i++)
+                                {
+                                    lockLabelButton(i, false);
+                                }
                                 queueConfigStatus.config = "SEND";
                                 processPushConfigQueue.Enqueue(queueConfigStatus.config);
                             }         
@@ -623,6 +685,10 @@ namespace SessionManager
                             clickState.btnRecieve = false;
                             if (confirmState.btnRecieve)
                             {
+                                for (int i = 0; i <= 3; i++)
+                                {
+                                    lockLabelButton(i, true);
+                                }
                                 queueConfigStatus.config = "RECV";
                                 processPushConfigQueue.Enqueue(queueConfigStatus.config);
                                 HandleReceiveMode();
