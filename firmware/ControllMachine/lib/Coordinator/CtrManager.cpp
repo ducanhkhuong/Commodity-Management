@@ -31,19 +31,20 @@ CtrManager::CtrManager(uint32_t baurate) :
     HandlerUartRecieveTimer.start();
     HandlerNotifyTimer.start();
     HandlerHardWareTimer.start();
+    HandlerHomeTimer.start();
     ProcessFoward.start(); 
 
     //config
-    stepperX.setMaxSpeed(8000);
-    stepperX.setAcceleration(4000);
+    stepperX.setMaxSpeed(12000);
+    stepperX.setAcceleration(7000);
     stepperX.setCurrentPosition(0);
 
-    stepperY.setMaxSpeed(8000);
-    stepperY.setAcceleration(4000);
+    stepperY.setMaxSpeed(12000);
+    stepperY.setAcceleration(7000);
     stepperY.setCurrentPosition(0);
 
-    stepperZ.setMaxSpeed(8000);
-    stepperZ.setAcceleration(4000);
+    stepperZ.setMaxSpeed(12000);
+    stepperZ.setAcceleration(7000);
     stepperZ.setCurrentPosition(0);
 
     stepperX.stop();
@@ -52,11 +53,15 @@ CtrManager::CtrManager(uint32_t baurate) :
 
     stepperMonitor.stepStage = 0;
     stepperMonitor.moving = false;
+    stepperMonitor.homeFinished = false;
+    hwStatus.buttonX = false;
+    hwStatus.buttonY = false;
+    hwStatus.buttonZ = false;
 }
 
 void CtrManager::HandllerPull() {
     if(HandlerUartRecieveTimer.isRunning()){
-        if (HandlerUartRecieveTimer.isCheckTime(TIMER_TICK_HANDLER)){
+        if (HandlerUartRecieveTimer.isCheckTime(TIMER_TICK_HANDLER_RECV)){
             stream.read();
             dataQueue.bufferPull = stream.getData();
             dataQueue.length = stream.length();
@@ -122,7 +127,7 @@ void CtrManager::HandllerPull() {
 
 void CtrManager::HandllerPush() {
     if (HandlerUartTransmitTimer.isRunning()) {
-        if (HandlerUartTransmitTimer.isCheckTime(TIMER_TICK_CALLBACK_RESPONSE)) {
+        if (HandlerUartTransmitTimer.isCheckTime(TIMER_TICK_HANDLER_SEND)) {
             stream.write(hwStatus.bufferPush, sizeof(hwStatus.bufferPush));
         }
     }
@@ -132,7 +137,7 @@ void CtrManager::HandllerPush() {
 
 void CtrManager::HandllerNotify() {
     if(HandlerNotifyTimer.isRunning()){
-        if(HandlerNotifyTimer.isCheckTime(TIMER_TICK_HANDLER)){
+        if(HandlerNotifyTimer.isCheckTime(TIMER_TICK_HANDLER_RECV)){
             ;
         }
     }
@@ -145,7 +150,6 @@ void CtrManager::HandllerHardware(){
             ButtonAxisX.updatePressState();
             ButtonAxisY.updatePressState();
             ButtonAxisZ.updatePressState();
-
             hwStatus.buttonX = ButtonAxisX.isPressed();
             hwStatus.buttonY = ButtonAxisY.isPressed();
             hwStatus.buttonZ = ButtonAxisZ.isPressed();
@@ -165,40 +169,71 @@ void CtrManager::HandllerHardware(){
     }
 }
 
+void CtrManager::HandllerHome(){
+    if (!HandlerHomeTimer.isRunning()) return;
+    if (!HandlerHomeTimer.isCheckTime(TIMER_TICK_HANDLER_EXECUTE)) return;
+    if (stepperMonitor.stepStage == 4 && !stepperMonitor.homeFinished
+        && !stepperX.isRunning() && !stepperY.isRunning() && !stepperZ.isRunning() 
+        && hwStatus.buttonX && hwStatus.buttonY && hwStatus.buttonZ
+        ) 
+    {
+        stepperY.moveTo(8  * STEPS_PER_MM);
+        stepperZ.moveTo(-120 * STEPS_PER_MM);
+        stepperX.moveTo(-45 * STEPS_PER_MM);
+        stepperMonitor.moving = true;
+        stepperMonitor.homeFinished = true;
+    }
+
+    if (stepperMonitor.stepStage == 4 && stepperMonitor.homeFinished
+        && stepperMonitor.moving
+        && !stepperX.isRunning() && !stepperY.isRunning() && !stepperZ.isRunning()
+        ) 
+    {
+        stepperMonitor.moving = false;
+        stepperMonitor.stepStage = 5;
+        stepperMonitor.homeFinished = false;
+        stepperX.setCurrentPosition(0);
+        stepperY.setCurrentPosition(0);
+        stepperZ.setCurrentPosition(0);
+        stepperX.stop(); 
+        stepperY.stop(); 
+        stepperZ.stop();
+    }
+}
+
+
 void CtrManager::_ProcessFunc() {
+    static uint8_t lastCmd0 = 0;
+    static uint8_t lastCmd1 = 0;
     if(ProcessFoward.isRunning()){
-        if(ProcessFoward.isCheckTime(1)){
+        if(ProcessFoward.isCheckTime(TIMER_TICK_HANDLER_EXECUTE)){
             //home
-            if(syncMachine.QueueByteConfirm[0]==0xFF && syncMachine.QueueByteConfirm[1]==0x00){
-                stepperMonitor.stepStage = 1;
-                switch (stepperMonitor.stepStage){
-                    case 1:
-                        if(!stepperX.isRunning() && !stepperY.isRunning() && !stepperZ.isRunning()){
-                            stepperY.moveTo(-10000);
-                        }
-                        if (stepperY.isRunning() && !ButtonAxisY.isPressed()){
-                            stepperY.stop();
-                            stepperY.moveTo(5 * STEPS_PER_MM);
+            if (syncMachine.QueueByteConfirm[0] == 0xFF && syncMachine.QueueByteConfirm[1] == 0x00) {
+                if (lastCmd0 != syncMachine.QueueByteConfirm[0] || lastCmd1 != syncMachine.QueueByteConfirm[1]) {
+                    stepperMonitor.stepStage = 0;
+                    stepperMonitor.moving = false;
+                    lastCmd0 = syncMachine.QueueByteConfirm[0];
+                    lastCmd1 = syncMachine.QueueByteConfirm[1];
+                }
+
+                switch (stepperMonitor.stepStage) {
+                    case 0:
+                        if (!stepperMonitor.moving) {
+                            stepperY.moveTo(-10000 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        } else if (stepperMonitor.moving && hwStatus.buttonY && !hwStatus.buttonX && !hwStatus.buttonZ) {
                             stepperY.setCurrentPosition(0);
-                            stepperMonitor.stepStage = 2;
+                            stepperMonitor.stepStage = 1;
+                            stepperMonitor.moving = false;
                         }
                     break;
 
-                    case 2:
-                        // go to
-                    break;
-                }
-            }
-            //send
-            if(syncMachine.QueueByteConfirm[0]==0xAA && syncMachine.QueueByteConfirm[1]==0x01){
-                stepperMonitor.stepStage = 1;
-                switch (stepperMonitor.stepStage) {
                     case 1:
                         if (!stepperMonitor.moving) {
-                            stepperY.moveTo(70 * STEPS_PER_MM);
+                            stepperZ.moveTo(10000 * STEPS_PER_MM);
                             stepperMonitor.moving = true;
-                        }
-                        if (stepperMonitor.moving && stepperY.distanceToGo() == 0) {
+                        } else if (stepperMonitor.moving && hwStatus.buttonZ && hwStatus.buttonY && !hwStatus.buttonX) {
+                            stepperZ.setCurrentPosition(0);
                             stepperMonitor.stepStage = 2;
                             stepperMonitor.moving = false;
                         }
@@ -206,7 +241,563 @@ void CtrManager::_ProcessFunc() {
 
                     case 2:
                         if (!stepperMonitor.moving) {
-                            stepperZ.moveTo(70 * STEPS_PER_MM);
+                            stepperX.moveTo(10000 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        } else if (stepperMonitor.moving && hwStatus.buttonX && hwStatus.buttonY && hwStatus.buttonZ) {
+                            stepperX.setCurrentPosition(0);
+                            stepperMonitor.stepStage = 3; 
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 3:
+                        if(hwStatus.buttonX && hwStatus.buttonY && hwStatus.buttonZ && stepperMonitor.stepStage == 3){
+                            stepperMonitor.stepStage = 4;
+                        }
+                    break;
+                }
+            }
+
+            //send
+            if(syncMachine.QueueByteConfirm[0]==0xAA && syncMachine.QueueByteConfirm[1]==0x01){
+                if (lastCmd0 != syncMachine.QueueByteConfirm[0] || lastCmd1 != syncMachine.QueueByteConfirm[1]) {
+                    stepperMonitor.stepStage = 0;
+                    stepperMonitor.moving = false;
+                    lastCmd0 = syncMachine.QueueByteConfirm[0];
+                    lastCmd1 = syncMachine.QueueByteConfirm[1];
+                }
+                switch (stepperMonitor.stepStage) {
+                    case 0:
+                        if (!stepperMonitor.moving) {
+                            stepperY.moveTo(80 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperY.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 1;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 1:
+                        if (!stepperMonitor.moving) {
+                            stepperZ.moveTo(110 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperZ.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 2;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 2:
+                        if (!stepperMonitor.moving) {
+                            stepperY.moveTo(0);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperY.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 3;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 3:
+                        if (!stepperMonitor.moving) {
+                            stepperX.moveTo(-375 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperX.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 4;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 4:
+                        if (!stepperMonitor.moving) {
+                            stepperY.moveTo(80 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperY.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 5;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 5:
+                        if (!stepperMonitor.moving) {
+                            stepperZ.moveTo(0);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperZ.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 6;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 6:
+                        if (!stepperMonitor.moving) {
+                            stepperY.moveTo(0);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperY.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 7;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 7:
+                        if (!stepperMonitor.moving) {
+                            stepperX.moveTo(0);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperX.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 8;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+                    
+                    case 8:             
+                        stepperMonitor.moving = false;        
+                        stepperX.stop();
+                        stepperY.stop();
+                        stepperZ.stop();
+                    break;
+                }
+            }
+            if(syncMachine.QueueByteConfirm[0]==0xAA && syncMachine.QueueByteConfirm[1]==0x02){
+                if (lastCmd0 != 0xAA || lastCmd1 != 0x02) {
+                    stepperMonitor.stepStage = 0;
+                    stepperMonitor.moving = false;
+                    lastCmd0 = 0xAA;
+                    lastCmd1 = 0x02;
+                }
+                switch (stepperMonitor.stepStage) {
+                    case 0:
+                        if (!stepperMonitor.moving) {
+                            stepperY.moveTo(80 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperY.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 1;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 1:
+                        if (!stepperMonitor.moving) {
+                            stepperZ.moveTo(110 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperZ.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 2;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 2:
+                        if (!stepperMonitor.moving) {
+                            stepperY.moveTo(0);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperY.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 3;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 3:
+                        if (!stepperMonitor.moving) {
+                            stepperX.moveTo(-235 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperX.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 4;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 4:
+                        if (!stepperMonitor.moving) {
+                            stepperY.moveTo(80 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperY.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 5;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 5:
+                        if (!stepperMonitor.moving) {
+                            stepperZ.moveTo(0);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperZ.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 6;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 6:
+                        if (!stepperMonitor.moving) {
+                            stepperY.moveTo(0);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperY.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 7;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 7:
+                        if (!stepperMonitor.moving) {
+                            stepperX.moveTo(0);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperX.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 8;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+                    
+                    case 8:             
+                        stepperMonitor.moving = false;        
+                        stepperX.stop();
+                        stepperY.stop();
+                        stepperZ.stop();
+                    break;
+                }
+            }
+            if(syncMachine.QueueByteConfirm[0]==0xAA && syncMachine.QueueByteConfirm[1]==0x03){
+                if (lastCmd0 != 0xAA || lastCmd1 != 0x03) {
+                    stepperMonitor.stepStage = 0;
+                    stepperMonitor.moving = false;
+                    lastCmd0 = 0xAA;
+                    lastCmd1 = 0x03;
+                }
+                switch (stepperMonitor.stepStage) {
+                    case 0:
+                        if (!stepperMonitor.moving) {
+                            stepperY.moveTo(80 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperY.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 1;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 1:
+                        if (!stepperMonitor.moving) {
+                            stepperZ.moveTo(110 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperZ.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 2;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 2:
+                        if (!stepperMonitor.moving) {
+                            stepperY.moveTo(0);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperY.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 3;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 3:
+                        if (!stepperMonitor.moving) {
+                            stepperX.moveTo(-120 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperX.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 4;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 4:
+                        if (!stepperMonitor.moving) {
+                            stepperZ.moveTo(0);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperZ.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 5;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 5:
+                        if (!stepperMonitor.moving) {
+                            stepperZ.moveTo(-80 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperZ.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 6;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 6:
+                        if (!stepperMonitor.moving) {
+                            stepperX.moveTo(-372 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperX.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 7;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 7:
+                        if (!stepperMonitor.moving) {
+                            stepperY.moveTo(80 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperY.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 8;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 8:
+                        if (!stepperMonitor.moving) {
+                            stepperZ.moveTo(-137 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperZ.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 9;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 9:
+                        if (!stepperMonitor.moving) {
+                            stepperY.moveTo(0);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperY.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 10;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 10:
+                    if (!stepperMonitor.moving) {
+                            stepperX.moveTo(0);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperX.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 11;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 11:
+                        if (!stepperMonitor.moving) {
+                            stepperZ.moveTo(0);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperZ.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 12;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 12:
+                        stepperMonitor.moving = false;        
+                        stepperX.stop();
+                        stepperY.stop();
+                        stepperZ.stop();
+                    break;
+                }
+            }
+            if(syncMachine.QueueByteConfirm[0]==0xAA && syncMachine.QueueByteConfirm[1]==0x04){
+                if (lastCmd0 != 0xAA || lastCmd1 != 0x04) {
+                    stepperMonitor.stepStage = 0;
+                    stepperMonitor.moving = false;
+                    lastCmd0 = 0xAA;
+                    lastCmd1 = 0x04;
+                }
+                switch (stepperMonitor.stepStage) {
+                    case 0:
+                        if (!stepperMonitor.moving) {
+                            stepperY.moveTo(80 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperY.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 1;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 1:
+                        if (!stepperMonitor.moving) {
+                            stepperZ.moveTo(110 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperZ.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 2;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 2:
+                        if (!stepperMonitor.moving) {
+                            stepperY.moveTo(0);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperY.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 3;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 3:
+                        if (!stepperMonitor.moving) {
+                            stepperX.moveTo(-120 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperX.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 4;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 4:
+                        if (!stepperMonitor.moving) {
+                            stepperZ.moveTo(0);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperZ.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 5;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 5:
+                        if (!stepperMonitor.moving) {
+                            stepperZ.moveTo(-80 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperZ.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 6;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 6:
+                        if (!stepperMonitor.moving) {
+                            stepperX.moveTo(-237 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperX.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 7;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 7:
+                        if (!stepperMonitor.moving) {
+                            stepperY.moveTo(80 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperY.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 8;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 8:
+                        if (!stepperMonitor.moving) {
+                            stepperZ.moveTo(-137 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperZ.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 9;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 9:
+                        if (!stepperMonitor.moving) {
+                            stepperY.moveTo(0);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperY.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 10;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 10:
+                    if (!stepperMonitor.moving) {
+                            stepperX.moveTo(0);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperX.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 11;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 11:
+                        if (!stepperMonitor.moving) {
+                            stepperZ.moveTo(0);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperZ.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 12;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 12:
+                        stepperMonitor.moving = false;        
+                        stepperX.stop();
+                        stepperY.stop();
+                        stepperZ.stop();
+                    break;
+                }
+            }
+            
+            //recv
+            if(syncMachine.QueueByteConfirm[0]==0xBB && syncMachine.QueueByteConfirm[1]==0x01){
+                if (lastCmd0 != syncMachine.QueueByteConfirm[0] || lastCmd1 != syncMachine.QueueByteConfirm[1]) {
+                    stepperMonitor.stepStage = 0;
+                    stepperMonitor.moving = false;
+                    lastCmd0 = syncMachine.QueueByteConfirm[0];
+                    lastCmd1 = syncMachine.QueueByteConfirm[1];
+                }
+                switch (stepperMonitor.stepStage) {
+                    case 0:
+                        if (!stepperMonitor.moving) {
+                            stepperX.moveTo(-375 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperX.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 1;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+                    
+                    case 1:
+                        if (!stepperMonitor.moving) {
+                            stepperY.moveTo(80 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperY.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 2;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+                
+                    case 2:
+                        if (!stepperMonitor.moving) {
+                            stepperZ.moveTo(110 * STEPS_PER_MM);
                             stepperMonitor.moving = true;
                         }
                         if (stepperMonitor.moving && stepperZ.distanceToGo() == 0) {
@@ -228,7 +819,7 @@ void CtrManager::_ProcessFunc() {
 
                     case 4:
                         if (!stepperMonitor.moving) {
-                            stepperX.moveTo(-260 * STEPS_PER_MM);
+                            stepperX.moveTo(-120 * STEPS_PER_MM);
                             stepperMonitor.moving = true;
                         }
                         if (stepperMonitor.moving && stepperX.distanceToGo() == 0) {
@@ -239,10 +830,10 @@ void CtrManager::_ProcessFunc() {
 
                     case 5:
                         if (!stepperMonitor.moving) {
-                            stepperY.moveTo(70 * STEPS_PER_MM);
+                            stepperZ.moveTo(0);
                             stepperMonitor.moving = true;
                         }
-                        if (stepperMonitor.moving && stepperY.distanceToGo() == 0) {
+                        if (stepperMonitor.moving && stepperZ.distanceToGo() == 0) {
                             stepperMonitor.stepStage = 6;
                             stepperMonitor.moving = false;
                         }
@@ -250,7 +841,7 @@ void CtrManager::_ProcessFunc() {
 
                     case 6:
                         if (!stepperMonitor.moving) {
-                            stepperZ.moveTo(0);
+                            stepperZ.moveTo(-80 * STEPS_PER_MM);
                             stepperMonitor.moving = true;
                         }
                         if (stepperMonitor.moving && stepperZ.distanceToGo() == 0) {
@@ -261,10 +852,306 @@ void CtrManager::_ProcessFunc() {
 
                     case 7:
                         if (!stepperMonitor.moving) {
+                            stepperX.moveTo(0);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperX.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 8;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 8:
+                        if (!stepperMonitor.moving) {
+                            stepperY.moveTo(80 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperY.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 9;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 9:
+                        if (!stepperMonitor.moving) {
+                            stepperZ.moveTo(-137 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperZ.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 10;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 10:
+                        if (!stepperMonitor.moving) {
                             stepperY.moveTo(0);
                             stepperMonitor.moving = true;
                         }
                         if (stepperMonitor.moving && stepperY.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 11;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 11:
+                        if (!stepperMonitor.moving) {
+                            stepperZ.moveTo(0);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperZ.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 12;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 12:
+                        stepperMonitor.moving = false;        
+                        stepperX.stop();
+                        stepperY.stop();
+                        stepperZ.stop();
+                    break;
+                }
+            }
+            if(syncMachine.QueueByteConfirm[0]==0xBB && syncMachine.QueueByteConfirm[1]==0x02){
+                if (lastCmd0 != syncMachine.QueueByteConfirm[0] || lastCmd1 != syncMachine.QueueByteConfirm[1]) {
+                    stepperMonitor.stepStage = 0;
+                    stepperMonitor.moving = false;
+                    lastCmd0 = syncMachine.QueueByteConfirm[0];
+                    lastCmd1 = syncMachine.QueueByteConfirm[1];
+                }
+                switch (stepperMonitor.stepStage) {
+                    case 0:
+                        if (!stepperMonitor.moving) {
+                            stepperX.moveTo(-235 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperX.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 1;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 1:
+                        if (!stepperMonitor.moving) {
+                            stepperY.moveTo(80 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperY.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 2;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 2:
+                        if (!stepperMonitor.moving) {
+                            stepperZ.moveTo(110 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperZ.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 3;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 3:
+                        if (!stepperMonitor.moving) {
+                            stepperY.moveTo(0);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperY.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 4;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 4:
+                        if (!stepperMonitor.moving) {
+                            stepperX.moveTo(-120 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperX.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 5;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 5:
+                        if (!stepperMonitor.moving) {
+                            stepperZ.moveTo(0);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperZ.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 6;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 6:
+                        if (!stepperMonitor.moving) {
+                            stepperZ.moveTo(-80 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperZ.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 7;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 7:
+                        if (!stepperMonitor.moving) {
+                            stepperX.moveTo(0);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperX.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 8;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 8:
+                        if (!stepperMonitor.moving) {
+                            stepperY.moveTo(80 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperY.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 9;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 9:
+                        if (!stepperMonitor.moving) {
+                            stepperZ.moveTo(-137 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperZ.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 10;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 10:
+                        if (!stepperMonitor.moving) {
+                            stepperY.moveTo(0);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperY.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 11;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 11:
+                        if (!stepperMonitor.moving) {
+                            stepperZ.moveTo(0);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperZ.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 12;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 12:
+                        stepperMonitor.moving = false;        
+                        stepperX.stop();
+                        stepperY.stop();
+                        stepperZ.stop();
+                    break;
+                }
+            }
+            if(syncMachine.QueueByteConfirm[0]==0xBB && syncMachine.QueueByteConfirm[1]==0x03){
+                if (lastCmd0 != syncMachine.QueueByteConfirm[0] || lastCmd1 != syncMachine.QueueByteConfirm[1]) {
+                    stepperMonitor.stepStage = 0;
+                    stepperMonitor.moving = false;
+                    lastCmd0 = syncMachine.QueueByteConfirm[0];
+                    lastCmd1 = syncMachine.QueueByteConfirm[1];
+                }
+                switch (stepperMonitor.stepStage) {
+                    case 0:
+                        if (!stepperMonitor.moving) {
+                            stepperZ.moveTo(-137 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperZ.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 1;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 1:
+                        if (!stepperMonitor.moving) {
+                            stepperX.moveTo(-372 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperX.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 2;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 2:
+                        if (!stepperMonitor.moving) {
+                            stepperY.moveTo(80 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperY.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 3;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 3:
+                        if (!stepperMonitor.moving) {
+                            stepperZ.moveTo(-80 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperZ.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 4;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 4:
+                        if (!stepperMonitor.moving) {
+                            stepperY.moveTo(0);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperY.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 5;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 5:
+                        if (!stepperMonitor.moving) {
+                            stepperZ.moveTo(-40 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperZ.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 6;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 6:
+                        if (!stepperMonitor.moving) {
+                            stepperX.moveTo(-120 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperX.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 7;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 7:
+                        if (!stepperMonitor.moving) {
+                            stepperZ.moveTo(-80 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperZ.distanceToGo() == 0) {
                             stepperMonitor.stepStage = 8;
                             stepperMonitor.moving = false;
                         }
@@ -280,50 +1167,235 @@ void CtrManager::_ProcessFunc() {
                             stepperMonitor.moving = false;
                         }
                     break;
-                    
-                    case 9:             
-                        stepperMonitor.stepStage = 0;
+                    case 9:
+                        if (!stepperMonitor.moving) {
+                            stepperY.moveTo(80 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperY.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 10;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 10:
+                        if (!stepperMonitor.moving) {
+                            stepperZ.moveTo(-137 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperZ.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 11;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 11:
+                        if (!stepperMonitor.moving) {
+                            stepperY.moveTo(0);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperY.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 12;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 12:
+                        if (!stepperMonitor.moving) {
+                            stepperZ.moveTo(0);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperZ.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 13;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 13:
                         stepperMonitor.moving = false;        
                         stepperX.stop();
-                        stepperX.stop();
-                        stepperX.stop();
+                        stepperY.stop();
+                        stepperZ.stop();
                     break;
                 }
             }
-            if(syncMachine.QueueByteConfirm[0]==0xAA && syncMachine.QueueByteConfirm[1]==0x02){
-
-            }
-            if(syncMachine.QueueByteConfirm[0]==0xAA && syncMachine.QueueByteConfirm[1]==0x03){
-
-            }
-            if(syncMachine.QueueByteConfirm[0]==0xAA && syncMachine.QueueByteConfirm[1]==0x04){
-
-            }
-            
-            //recv
-            if(syncMachine.QueueByteConfirm[0]==0xBB && syncMachine.QueueByteConfirm[1]==0x01){
-
-            }
-            if(syncMachine.QueueByteConfirm[0]==0xBB && syncMachine.QueueByteConfirm[1]==0x02){
-
-            }
-            if(syncMachine.QueueByteConfirm[0]==0xBB && syncMachine.QueueByteConfirm[1]==0x03){
-
-            }
             if(syncMachine.QueueByteConfirm[0]==0xBB && syncMachine.QueueByteConfirm[1]==0x04){
+                if (lastCmd0 != syncMachine.QueueByteConfirm[0] || lastCmd1 != syncMachine.QueueByteConfirm[1]) {
+                    stepperMonitor.stepStage = 0;
+                    stepperMonitor.moving = false;
+                    lastCmd0 = syncMachine.QueueByteConfirm[0];
+                    lastCmd1 = syncMachine.QueueByteConfirm[1];
+                }
+                switch (stepperMonitor.stepStage) {
+                    case 0:
+                        if (!stepperMonitor.moving) {
+                            stepperZ.moveTo(-137 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperZ.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 1;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
 
+                    case 1:
+                        if (!stepperMonitor.moving) {
+                            stepperX.moveTo(-237 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperX.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 2;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 2:
+                        if (!stepperMonitor.moving) {
+                            stepperY.moveTo(80 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperY.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 3;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 3:
+                        if (!stepperMonitor.moving) {
+                            stepperZ.moveTo(-80 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperZ.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 4;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 4:
+                        if (!stepperMonitor.moving) {
+                            stepperY.moveTo(0);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperY.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 5;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 5:
+                        if (!stepperMonitor.moving) {
+                            stepperZ.moveTo(-40 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperZ.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 6;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 6:
+                        if (!stepperMonitor.moving) {
+                            stepperX.moveTo(-120 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperX.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 7;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 7:
+                        if (!stepperMonitor.moving) {
+                            stepperZ.moveTo(-80 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperZ.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 8;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 8:
+                        if (!stepperMonitor.moving) {
+                            stepperX.moveTo(0);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperX.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 9;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+                    case 9:
+                        if (!stepperMonitor.moving) {
+                            stepperY.moveTo(80 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperY.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 10;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 10:
+                        if (!stepperMonitor.moving) {
+                            stepperZ.moveTo(-137 * STEPS_PER_MM);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperZ.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 11;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 11:
+                        if (!stepperMonitor.moving) {
+                            stepperY.moveTo(0);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperY.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 12;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 12:
+                        if (!stepperMonitor.moving) {
+                            stepperZ.moveTo(0);
+                            stepperMonitor.moving = true;
+                        }
+                        if (stepperMonitor.moving && stepperZ.distanceToGo() == 0) {
+                            stepperMonitor.stepStage = 13;
+                            stepperMonitor.moving = false;
+                        }
+                    break;
+
+                    case 13:
+                        stepperMonitor.moving = false;        
+                        stepperX.stop();
+                        stepperY.stop();
+                        stepperZ.stop();
+                    break;
+                }
             }
 
-            //test
+            //stop
             if(syncMachine.QueueByteConfirm[0]==0xCC && syncMachine.QueueByteConfirm[1]==0x00){
-                ;
+                stepperX.setCurrentPosition(0);
+                stepperY.setCurrentPosition(0);
+                stepperZ.setCurrentPosition(0);
+                stepperX.stop(); 
+                stepperY.stop(); 
+                stepperZ.stop();
             }
 
             //lock motor
             if(syncMachine.QueueByteConfirm[0]==0x00 && syncMachine.QueueByteConfirm[1]==0x00){
+                stepperX.setCurrentPosition(0);
+                stepperY.setCurrentPosition(0);
+                stepperZ.setCurrentPosition(0);
                 stepperX.stop();
-                stepperX.stop();
-                stepperX.stop();
+                stepperY.stop();
+                stepperZ.stop();
             }
         }
     }
@@ -337,6 +1409,7 @@ void CtrManager::HandllerManager() {
     HandllerPush();
     HandllerNotify();
     HandllerHardware();
+    HandllerHome();
     _ProcessFunc();
 }
 

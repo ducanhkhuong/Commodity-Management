@@ -65,6 +65,7 @@
             this.ledBtnZ = new System.Windows.Forms.Button();
             this.ledBtnY = new System.Windows.Forms.Button();
             this.ledBtnX = new System.Windows.Forms.Button();
+            this.btnStop = new System.Windows.Forms.Button();
             ((System.ComponentModel.ISupportInitialize)(this.CamImageBox)).BeginInit();
             this.groupBox1.SuspendLayout();
             this.groupBox2.SuspendLayout();
@@ -182,6 +183,7 @@
             // groupBox4
             // 
             this.groupBox4.BackColor = System.Drawing.SystemColors.InactiveCaption;
+            this.groupBox4.Controls.Add(this.btnStop);
             this.groupBox4.Controls.Add(this.ledHome);
             this.groupBox4.Controls.Add(this.ledLayhang);
             this.groupBox4.Controls.Add(this.ledGuihang);
@@ -198,7 +200,7 @@
             // ledHome
             // 
             this.ledHome.BackColor = System.Drawing.Color.Red;
-            this.ledHome.Location = new System.Drawing.Point(466, 21);
+            this.ledHome.Location = new System.Drawing.Point(322, 21);
             this.ledHome.Name = "ledHome";
             this.ledHome.Size = new System.Drawing.Size(23, 18);
             this.ledHome.TabIndex = 18;
@@ -207,7 +209,7 @@
             // ledLayhang
             // 
             this.ledLayhang.BackColor = System.Drawing.Color.Red;
-            this.ledLayhang.Location = new System.Drawing.Point(268, 21);
+            this.ledLayhang.Location = new System.Drawing.Point(202, 21);
             this.ledLayhang.Name = "ledLayhang";
             this.ledLayhang.Size = new System.Drawing.Size(23, 18);
             this.ledLayhang.TabIndex = 17;
@@ -224,7 +226,7 @@
             // 
             // btnHome
             // 
-            this.btnHome.Location = new System.Drawing.Point(438, 53);
+            this.btnHome.Location = new System.Drawing.Point(295, 53);
             this.btnHome.Name = "btnHome";
             this.btnHome.Size = new System.Drawing.Size(73, 33);
             this.btnHome.TabIndex = 15;
@@ -234,7 +236,7 @@
             // 
             // btnLayhang
             // 
-            this.btnLayhang.Location = new System.Drawing.Point(240, 53);
+            this.btnLayhang.Location = new System.Drawing.Point(177, 53);
             this.btnLayhang.Name = "btnLayhang";
             this.btnLayhang.Size = new System.Drawing.Size(73, 33);
             this.btnLayhang.TabIndex = 14;
@@ -430,6 +432,16 @@
             this.ledBtnX.TabIndex = 17;
             this.ledBtnX.UseVisualStyleBackColor = false;
             // 
+            // btnStop
+            // 
+            this.btnStop.Location = new System.Drawing.Point(416, 53);
+            this.btnStop.Name = "btnStop";
+            this.btnStop.Size = new System.Drawing.Size(73, 33);
+            this.btnStop.TabIndex = 19;
+            this.btnStop.Text = "Stop";
+            this.btnStop.UseVisualStyleBackColor = true;
+            this.btnStop.Click += new System.EventHandler(this.btnStop_Click);
+            // 
             // SessionManager
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
@@ -502,6 +514,7 @@
         private System.Windows.Forms.Button ledBtnX;
         private System.Windows.Forms.Label label9;
         private System.Windows.Forms.Label label8;
+        private System.Windows.Forms.Button btnStop;
     }
 }
 

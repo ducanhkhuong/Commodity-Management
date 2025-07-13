@@ -58,7 +58,7 @@ namespace SessionManager
         byte[] modehomeConfig    = new byte[] { 0x1F, 0xFF};
         byte[] modesendConfig    = new byte[] { 0x1F, 0xAA};
         byte[] moderecieveConfig = new byte[] { 0x1F, 0xBB};
-        byte[] modetestConfig    = new byte[] { 0x1F, 0xCC};
+        byte[] modestopConfig    = new byte[] { 0x1F, 0xCC};
         //controll
         byte[] index1SendControll = new byte[] { 0x2F, 0x01, 0x1F, 0xAA};
         byte[] index2SendControll = new byte[] { 0x2F, 0x02, 0x1F, 0xAA};
@@ -77,12 +77,14 @@ namespace SessionManager
             public bool btnHome;
             public bool btnSend;
             public bool btnRecieve;
+            public bool btnStop;
         };ClickStatus clickState;
 
         private struct ConfirmStatus {
             public bool btnSend;
             public bool btnRecieve;
             public bool btnHome;
+            public bool btnStop;
         };ConfirmStatus confirmState;
 
         private struct ArrayRepoCheck
@@ -128,7 +130,7 @@ namespace SessionManager
 
             try
             {
-                capture = new Capture(0);
+                capture = new Capture(1);
                 barcodeReader = new ZXing.BarcodeReader
                 {
                     AutoRotate = true,
@@ -296,6 +298,10 @@ namespace SessionManager
                             if (request_config == "SEND")
                             {
                                 serialPort.Write(modesendConfig, 0, modesendConfig.Length);
+                            }
+                            if(request_config == "STOP")
+                            {
+                                serialPort.Write(modestopConfig, 0, modestopConfig.Length);
                             }
                         }
                     }
@@ -645,7 +651,6 @@ namespace SessionManager
 
                         if (clickState.btnSend)
                         {
-                            SetLedStateMode(Color.Green,Color.Green, Color.Red, Color.Red);
                             DialogResult result = MessageBox.Show(
                                 "Vui lòng :\r\nĐặt hàng hóa chứa mã QR hợp lệ trước camera." +
                                 "          \r\nCăn chỉnh ánh sáng hợp lý để camera hoạt động tốt nhất\r\n" +
@@ -666,11 +671,11 @@ namespace SessionManager
                                 }
                                 queueConfigStatus.config = "SEND";
                                 processPushConfigQueue.Enqueue(queueConfigStatus.config);
+                                SetLedStateMode(Color.Green, Color.Green, Color.Red, Color.Red);
                             }         
                         }
                         else if (clickState.btnRecieve)
                         {
-                            SetLedStateMode(Color.Green,Color.Red, Color.Green, Color.Red);
                             DialogResult result = MessageBox.Show(
                                 "Vui lòng :\r\nChọn hàng khu vực vị trí hàng muốn lấy" +
                                 "          \r\nSau đó nhấn nút “lấy hàng” \r\n" +
@@ -685,6 +690,7 @@ namespace SessionManager
                             clickState.btnRecieve = false;
                             if (confirmState.btnRecieve)
                             {
+                                SetLedStateMode(Color.Green, Color.Red, Color.Green, Color.Red);
                                 for (int i = 0; i <= 3; i++)
                                 {
                                     lockLabelButton(i, true);
@@ -696,16 +702,23 @@ namespace SessionManager
                         }
                         else if (clickState.btnHome)
                         {
-                            SetLedStateMode(Color.Green,Color.Red, Color.Red, Color.Green);
                             confirmState.btnHome    = true;
                             confirmState.btnRecieve = false;
                             confirmState.btnSend    = false;
                             clickState.btnHome      = false;
                             if (confirmState.btnHome)
                             {
+                                SetLedStateMode(Color.Green, Color.Red, Color.Red, Color.Green);
                                 queueConfigStatus.config = "HOME";
                                 processPushConfigQueue.Enqueue(queueConfigStatus.config);
                             }
+                        }
+                        else if (clickState.btnStop)
+                        {
+                            SetLedStateMode(Color.Green, Color.Red, Color.Red, Color.Red);
+                            queueConfigStatus.config = "STOP";
+                            processPushConfigQueue.Enqueue(queueConfigStatus.config);
+                            clickState.btnStop = false;
                         }
                     });
                     await Task.Delay(100, cancellationToken);
@@ -911,5 +924,9 @@ namespace SessionManager
             e.Cancel = false;
         }
 
+        private void btnStop_Click(object sender, EventArgs e)
+        {
+            clickState.btnStop = true;
+        }
     }
 }

@@ -1,10 +1,6 @@
 C:\Users\duca3\OneDrive\Máy tính\support\software\desktop\EmguCV-CameraCapture\CameraCapture\bin\Debug\CameraCapture.exe.config
 C:\Users\duca3\OneDrive\Máy tính\support\software\desktop\EmguCV-CameraCapture\CameraCapture\bin\Debug\CameraCapture.exe
 C:\Users\duca3\OneDrive\Máy tính\support\software\desktop\EmguCV-CameraCapture\CameraCapture\bin\Debug\CameraCapture.pdb
-C:\Users\duca3\OneDrive\Máy tính\support\software\desktop\EmguCV-CameraCapture\CameraCapture\bin\Debug\Emgu.CV.dll
-C:\Users\duca3\OneDrive\Máy tính\support\software\desktop\EmguCV-CameraCapture\CameraCapture\bin\Debug\Emgu.CV.UI.dll
-C:\Users\duca3\OneDrive\Máy tính\support\software\desktop\EmguCV-CameraCapture\CameraCapture\bin\Debug\Emgu.Util.dll
-C:\Users\duca3\OneDrive\Máy tính\support\software\desktop\EmguCV-CameraCapture\CameraCapture\bin\Debug\FRSAPI.dll
 C:\Users\duca3\OneDrive\Máy tính\support\software\desktop\EmguCV-CameraCapture\CameraCapture\bin\Debug\Microsoft.Bcl.AsyncInterfaces.dll
 C:\Users\duca3\OneDrive\Máy tính\support\software\desktop\EmguCV-CameraCapture\CameraCapture\bin\Debug\System.Buffers.dll
 C:\Users\duca3\OneDrive\Máy tính\support\software\desktop\EmguCV-CameraCapture\CameraCapture\bin\Debug\System.IO.Pipelines.dll
@@ -45,3 +41,7 @@ C:\Users\duca3\OneDrive\Máy tính\support\software\desktop\EmguCV-CameraCapture
 C:\Users\duca3\OneDrive\Máy tính\support\software\desktop\EmguCV-CameraCapture\CameraCapture\obj\Debug\CameraCa.A442C365.Up2Date
 C:\Users\duca3\OneDrive\Máy tính\support\software\desktop\EmguCV-CameraCapture\CameraCapture\obj\Debug\CameraCapture.exe
 C:\Users\duca3\OneDrive\Máy tính\support\software\desktop\EmguCV-CameraCapture\CameraCapture\obj\Debug\CameraCapture.pdb
+C:\Users\duca3\OneDrive\Máy tính\support\software\desktop\EmguCV-CameraCapture\CameraCapture\bin\Debug\Emgu.CV.dll
+C:\Users\duca3\OneDrive\Máy tính\support\software\desktop\EmguCV-CameraCapture\CameraCapture\bin\Debug\Emgu.CV.UI.dll
+C:\Users\duca3\OneDrive\Máy tính\support\software\desktop\EmguCV-CameraCapture\CameraCapture\bin\Debug\Emgu.Util.dll
+C:\Users\duca3\OneDrive\Máy tính\support\software\desktop\EmguCV-CameraCapture\CameraCapture\bin\Debug\FRSAPI.dll

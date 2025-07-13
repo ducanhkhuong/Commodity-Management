@@ -54,12 +54,17 @@ class CtrManager{
         struct StepperMonitor{
             int stepStage;
             bool moving;
+            bool movingX;
+            bool movingY;
+            bool movingZ;
+            bool homeFinished;
         };StepperMonitor stepperMonitor;
 
         TimerMillis HandlerUartRecieveTimer;
         TimerMillis HandlerUartTransmitTimer;
         TimerMillis HandlerNotifyTimer;
         TimerMillis HandlerHardWareTimer;
+        TimerMillis HandlerHomeTimer;
         TimerMillis ProcessFoward;
 
         Button ButtonAxisX;
@@ -75,4 +80,5 @@ class CtrManager{
         void HandllerNotify();
         void HandllerHardware();
         void _ProcessFunc();
+        void HandllerHome();
 };
